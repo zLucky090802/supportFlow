@@ -7,6 +7,10 @@ requires-python = ">=3.13"
 dependencies = [
     "dotenv>=0.9.9",
     "fastapi>=0.141.1",
+    "mysql-connector-python>=26.7.0",
+    "pymysql>=1.2.0",
     "python-dotenv>=1.2.3",
+    "sqlacodegen>=4.0.4",
+    "sqlalchemy>=2.0.52",
     "uvicorn>=0.52.4",
 ]
