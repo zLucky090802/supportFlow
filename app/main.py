@@ -2,11 +2,15 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, APIRouter
 from sqlalchemy import text
 from app.db.database import engine
+from app.routes.organizations import router as organization_router
 
 load_dotenv()
 
 app = FastAPI(title='supportFlow')
 router = APIRouter()
+
+app.include_router(organization_router)
+
 
 @app.get('/health')
 def get_health():

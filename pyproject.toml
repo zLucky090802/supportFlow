@@ -6,8 +6,10 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "dotenv>=0.9.9",
+    "email-validator>=2.3.0",
     "fastapi>=0.141.1",
     "mysql-connector-python>=26.7.0",
+    "pydantic>=2.13.5",
     "pymysql>=1.2.0",
     "python-dotenv>=1.2.3",
     "sqlacodegen>=4.0.4",
