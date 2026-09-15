@@ -79,3 +79,13 @@ def delete_organization(db:Session, organization_id:str):
         db.rollback()
         raise
  
+
+
+def get_organization_by_email(db:Session, email:str):
+    try:
+        stmt = select(Organizations) .where(Organizations.email == email)
+        
+        return db.scalar(stmt)
+    
+    except SQLAlchemyError:
+        raise
