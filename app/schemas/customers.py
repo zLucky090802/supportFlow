@@ -10,6 +10,7 @@ class CustomerCreate(BaseModel):
 
 
 class CustomerUpdate(BaseModel):
+   
     name: str | None = None
     email: EmailStr | None = None
 

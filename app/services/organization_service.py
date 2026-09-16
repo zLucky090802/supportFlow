@@ -66,7 +66,7 @@ def update_organization(
         raise organization_exceptions.OrganizationNotFoundError()
 
     if organization_update.name is not None:
-        name = organization_update.name.strip()
+        name = organization_update.name
 
         if not name:
             raise organization_exceptions.InvalidOrganizationNameError()
