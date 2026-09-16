@@ -1,56 +1,113 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, status, Response
 from sqlalchemy.orm import Session
+
 from app.db.database import get_db
-from app.schemas.organization import(
-    OrganizarionCreate,
-    OrganizationResponse
+from app.schemas.organization import (
+    OrganizationCreate,
+    OrganizationUpdate
 )
-from app.repositories.organization_repository import(
-    create_organization,
-    get_organizations,
-    get_organization_by_id
-)
+from app.services import organization_service
+
 
 router = APIRouter(
-    prefix='/organizarions',
-    tags=['Organizations']
+    prefix="/organizations",
+    tags=["Organizations"]
 )
+
 
 @router.post(
-    '',
-    response_model=OrganizationResponse
+    "",
+    status_code=status.HTTP_201_CREATED
 )
-def create(
-    data: OrganizarionCreate,
+def create_organization(
+    data: OrganizationCreate,
     db: Session = Depends(get_db)
 ):
-    return create_organization(
-        db,
-        data.name,
-        data.email
+    created = organization_service.create_organization(
+        db=db,
+        organization_create=data
     )
 
-@router.get('')
-def get_all(
-    db:Session = Depends(get_db)
-):
-    return get_organizations(db)
+    return {
+        "success": True,
+        "message": "Organization created successfully",
+        "data": created
+    }
 
 
-@router.get('/{organization_id}')
-def get_by_id(
-    organization_id:str,
-    db:Session = Depends(get_db)
+@router.get(
+    "",
+    status_code=status.HTTP_200_OK
+)
+def get_organizations(
+    db: Session = Depends(get_db)
 ):
-    organization = get_organization_by_id(
-        db, 
-        organization_id
+    organizations = organization_service.get_organizations(
+        db=db
     )
-    
-    if not organization:
-        raise HTTPException(
-            status_code=404,
-            detail='Organization not found'
-        )
-        
-    return organization
+
+    return {
+        "success": True,
+        "message": "Organizations retrieved successfully",
+        "data": organizations
+    }
+
+
+@router.get(
+    "/{organization_id}",
+    status_code=status.HTTP_200_OK
+)
+def get_organization_by_id(
+    organization_id: str,
+    db: Session = Depends(get_db)
+):
+    organization = organization_service.get_organization_by_id(
+        db=db,
+        organization_id=organization_id
+    )
+
+    return {
+        "success": True,
+        "message": "Organization retrieved successfully",
+        "data": organization
+    }
+
+
+@router.patch(
+    "/{organization_id}",
+    status_code=status.HTTP_200_OK
+)
+def update_organization(
+    organization_id: str,
+    organization: OrganizationUpdate,
+    db: Session = Depends(get_db)
+):
+    updated = organization_service.update_organization(
+        db=db,
+        organization_id=organization_id,
+        organization_update=organization
+    )
+
+    return {
+        "success": True,
+        "message": "Organization updated successfully",
+        "data": updated
+    }
+
+
+@router.delete(
+    "/{organization_id}",
+    status_code=status.HTTP_204_NO_CONTENT
+)
+def delete_organization(
+    organization_id: str,
+    db: Session = Depends(get_db)
+):
+    organization_service.delete_organization(
+        db=db,
+        organization_id=organization_id
+    )
+
+    return Response(
+        status_code=status.HTTP_204_NO_CONTENT
+    )

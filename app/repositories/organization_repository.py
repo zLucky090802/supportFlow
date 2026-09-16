@@ -3,6 +3,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from app.models.generated_models import Organizations
 
+
 def create_organization(
     db:Session,
     name: str,
