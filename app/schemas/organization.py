@@ -17,3 +17,14 @@ class OrganizationResponse(BaseModel):
     id: str
     name: str
     email: str | None
+    
+class OrganizationDetailResponse(BaseModel):
+    success: bool
+    message: str
+    data: OrganizationResponse
+
+
+class OrganizationListResponse(BaseModel):
+    success: bool
+    message: str
+    data: list[OrganizationResponse]

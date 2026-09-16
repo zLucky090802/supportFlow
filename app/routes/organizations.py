@@ -4,7 +4,9 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.schemas.organization import (
     OrganizationCreate,
-    OrganizationUpdate
+    OrganizationUpdate,
+    OrganizationDetailResponse,
+    OrganizationListResponse
 )
 from app.services import organization_service
 
@@ -17,11 +19,13 @@ router = APIRouter(
 
 @router.post(
     "",
-    status_code=status.HTTP_201_CREATED
+    status_code=status.HTTP_201_CREATED,
+    response_model=OrganizationDetailResponse
 )
 def create_organization(
     data: OrganizationCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    
 ):
     created = organization_service.create_organization(
         db=db,
@@ -37,7 +41,8 @@ def create_organization(
 
 @router.get(
     "",
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    response_model=OrganizationListResponse
 )
 def get_organizations(
     db: Session = Depends(get_db)
@@ -55,11 +60,13 @@ def get_organizations(
 
 @router.get(
     "/{organization_id}",
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    response_model= OrganizationDetailResponse
 )
 def get_organization_by_id(
     organization_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    
 ):
     organization = organization_service.get_organization_by_id(
         db=db,
@@ -75,12 +82,14 @@ def get_organization_by_id(
 
 @router.patch(
     "/{organization_id}",
-    status_code=status.HTTP_200_OK
+    status_code=status.HTTP_200_OK,
+    response_model=OrganizationDetailResponse
 )
 def update_organization(
     organization_id: str,
     organization: OrganizationUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    
 ):
     updated = organization_service.update_organization(
         db=db,
