@@ -4,7 +4,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.exceptions import organization_exceptions
 
-def register_exception_handlers(app: FastAPI):
+def register_exception_handlers(app: FastAPI):  
     @app.exception_handler(
         organization_exceptions.OrganizationNotFoundError
     )

@@ -3,12 +3,13 @@ from fastapi import FastAPI, APIRouter
 from sqlalchemy import text
 from app.db.database import engine
 from app.routes.organizations import router as organization_router
-from app.handlers.exception_handlers import register_exception_handlers
+from app.handlers.organization_handlers import register_exception_handlers
+from app.handlers.customer_handlers import customer_exceptions
 
 load_dotenv()
 
 app = FastAPI(title='supportFlow')
-register_exception_handlers(app)
+
 router = APIRouter()
 
 app.include_router(organization_router)
@@ -33,3 +34,5 @@ def get_db_health():
         }
 
 app.include_router(router)
+register_exception_handlers(app)
+customer_exceptions(app)
