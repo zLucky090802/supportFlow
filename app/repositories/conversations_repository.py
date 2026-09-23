@@ -1,56 +1,82 @@
-from sqlalchemy import select, update, delete, func
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
-from app.models.generated_models import Conversations
+
 from datetime import datetime
 
-def get_conversations(db:Session):
+from sqlalchemy import select, update, func
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
+
+from app.models.generated_models import Conversations
+
+
+def get_conversations(db: Session):
     stmt = select(Conversations)
-    
     return db.scalars(stmt).all()
 
-def get_conversation_by_id(db:Session, conversation_id:str):
-    stmt = (select(Conversations).where(Conversations.id == conversation_id))
-    
+
+def get_conversation_by_id(
+    db: Session,
+    conversation_id: str
+):
+    stmt = select(Conversations).where(
+        Conversations.id == conversation_id
+    )
+
     return db.scalar(stmt)
-    
-    
-def get_conversations_by_organization_id(db:Session, organization_id:str):
-   stmt = (
-       select(Conversations)
-       .where(Conversations.organization_id == organization_id)
-   ) 
-   
-   return db.scalar(stmt)
 
-def get_conversation_by_customer_id(db:Session, customer_id:str):
-   stmt=(
-       select(Conversations)
-       .where(Conversations.customer_id == customer_id)
-    ) 
-   
-   return db.scalar(stmt)
-   
-   
-def create_conversation(db:Session,organization_id:str, customer_id:str, status:str):
-   try:
-       new_conversation = Conversations(
-           organization_id= organization_id,
-           customer_id= customer_id,
-           status= status
-       )
-       
-       db.add()
-       db.commit()
-       db.refresh(new_conversation)
-    
-   except SQLAlchemyError:
-       db.rollback()
-       raise 
-   
 
-def update_conversation(db: Session, conversation_id:str, status:str, resolved_at: datetime | None):
-   try:
+def get_conversations_by_organization_id(
+    db: Session,
+    organization_id: str
+):
+    stmt = select(Conversations).where(
+        Conversations.organization_id == organization_id
+    )
+
+    return db.scalars(stmt).all()
+
+
+def get_conversations_by_customer_id(
+    db: Session,
+    customer_id: str
+):
+    stmt = select(Conversations).where(
+        Conversations.customer_id == customer_id
+    )
+
+    return db.scalars(stmt).all()
+
+
+def create_conversation(
+    db: Session,
+    organization_id: str,
+    customer_id: str,
+    status: str
+):
+    try:
+        new_conversation = Conversations(
+            organization_id=organization_id,
+            customer_id=customer_id,
+            status=status
+        )
+
+        db.add(new_conversation)
+        db.commit()
+        db.refresh(new_conversation)
+
+        return new_conversation
+
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+
+
+def update_conversation(
+    db: Session,
+    conversation_id: str,
+    status: str,
+    resolved_at: datetime | None
+):
+    try:
         conversation = db.get(
             Conversations,
             conversation_id
