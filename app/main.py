@@ -2,9 +2,9 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, APIRouter
 from sqlalchemy import text
 from app.db.database import engine
-from app.routes.organizations import router as organization_router
+from app.routes.api import api_router
 from app.handlers.organization_handlers import register_exception_handlers
-from app.handlers.customer_handlers import customer_exceptions
+from app.handlers.customer_handlers import register_customer_handlers
 
 load_dotenv()
 
@@ -12,7 +12,7 @@ app = FastAPI(title='supportFlow')
 
 router = APIRouter()
 
-app.include_router(organization_router)
+app.include_router(api_router)
 
 
 @app.get('/health')
@@ -34,5 +34,6 @@ def get_db_health():
         }
 
 app.include_router(router)
+
 register_exception_handlers(app)
-customer_exceptions(app)
+register_customer_handlers(app)
