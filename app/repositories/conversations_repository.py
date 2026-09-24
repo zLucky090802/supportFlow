@@ -6,7 +6,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.generated_models import Conversations
+import logging
 
+logger = logging.getLogger(__name__)
 
 def get_conversations(db: Session):
     stmt = select(Conversations)
@@ -45,7 +47,6 @@ def get_conversations_by_customer_id(
 
     return db.scalars(stmt).all()
 
-
 def create_conversation(
     db: Session,
     organization_id: str,
@@ -67,9 +68,9 @@ def create_conversation(
 
     except SQLAlchemyError:
         db.rollback()
+        logger.exception("Error creating conversation")
         raise
-
-
+    
 def update_conversation(
     db: Session,
     conversation_id: str,
