@@ -17,3 +17,7 @@ class EmailRequiredError(Exception):
 class NameRequiredError(Exception):
     def __init__(self, message: str = 'Name is required, please enter a Name'):
         super().__init__(message)
+        
+class OrganizationIDRequired(Exception):
+    def __init__(self, message: str = 'Organization ID is required'):
+        super().__init__(message)

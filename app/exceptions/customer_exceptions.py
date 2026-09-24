@@ -18,4 +18,8 @@ class CustomerIDRequiredError(Exception):
 class ExistingEmailError(Exception):
     def __init__(self, message: str = "Email already exists. Please use another email address."):
         super().__init__(message)
+    
+class CustomerOrganizationMismatchError(Exception):
+    def __init__(self, message: str = "The client does not belong to that organization."):
+        super().__init__(message)
         
