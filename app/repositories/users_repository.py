@@ -4,7 +4,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.models.generated_models import Users
+from app.models.generated_models import Conversations, Users
 
 
 def get_users(db: Session) -> Sequence[Users]:
@@ -13,6 +13,13 @@ def get_users(db: Session) -> Sequence[Users]:
 
 def get_user_by_id(db: Session, user_id: str) -> Users | None:
     return db.get(Users, user_id)
+
+
+def has_assigned_conversations(db: Session, user_id: str) -> bool:
+    stmt = select(Conversations.id).where(
+        Conversations.assigned_agent_id == user_id
+    ).limit(1)
+    return db.scalar(stmt) is not None
 
 
 def get_user_by_email(db: Session, user_email: str) -> Users | None:

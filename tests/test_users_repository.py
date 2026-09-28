@@ -110,6 +110,7 @@ class UsersRepositoryTests(unittest.TestCase):
 
     def test_assigned_user_cannot_be_deleted_and_conversation_is_preserved(self):
         user = self.create_user()
+        self.assertFalse(users_repository.has_assigned_conversations(self.db, user.id))
         self.db.add(Customers(id="customer", organization_id="org", name="Customer", email="customer@example.com"))
         self.db.commit()
         self.db.add(Conversations(
@@ -119,6 +120,8 @@ class UsersRepositoryTests(unittest.TestCase):
         self.db.commit()
         with self.assertRaises(IntegrityError):
             users_repository.delete_user(self.db, user.id)
+        self.assertTrue(users_repository.has_assigned_conversations(self.db, user.id))
+        self.assertFalse(users_repository.has_assigned_conversations(self.db, "missing"))
         self.assertIsNotNone(users_repository.get_user_by_id(self.db, user.id))
         self.assertEqual(self.db.get(Conversations, "conversation").assigned_agent_id, user.id)
 
