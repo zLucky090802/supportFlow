@@ -6,6 +6,16 @@ from app.exceptions import customer_exceptions
 
 
 def register_customer_handlers(app: FastAPI):
+    @app.exception_handler(customer_exceptions.CustomerOrganizationMismatchError)
+    async def customer_organization_mismatch(
+        request: Request,
+        exc: customer_exceptions.CustomerOrganizationMismatchError,
+    ):
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "message": str(exc), "data": None},
+        )
+
     @app.exception_handler(
         customer_exceptions.CustomerNotFoundError
     )

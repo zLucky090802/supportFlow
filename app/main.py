@@ -6,6 +6,7 @@ from app.routes.api import api_router
 from app.handlers.organization_handlers import register_exception_handlers
 from app.handlers.customer_handlers import register_customer_handlers
 from app. handlers.conversation_handlers import register_conversation_handlers
+from app.handlers.message_handlers import register_message_handlers
 
 load_dotenv()
 
@@ -39,3 +40,4 @@ app.include_router(router)
 register_exception_handlers(app)
 register_customer_handlers(app)
 register_conversation_handlers(app)
+register_message_handlers(app)
