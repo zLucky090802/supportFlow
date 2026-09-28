@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.exceptions import organization_exceptions, user_exceptions
 from app.models.generated_models import Users
+from app.dependencies.auth import get_current_user
 
 with patch.dict(os.environ, {"DATABASE_URL": "sqlite://"}):
     from app.db.database import get_db
@@ -25,6 +26,12 @@ class UserRoutesTests(unittest.IsolatedAsyncioTestCase):
             id="user", organization_id="org", name="Agent", email="agent@example.com",
             role="AGENT", password_hash="private-stored-hash",
         )
+        self.app.dependency_overrides[get_current_user] = lambda: Users(
+            id="admin", organization_id="org", role="ADMIN",
+        )
+        guard = patch("app.routes.users.authorization.require_user", return_value=self.user)
+        guard.start()
+        self.addCleanup(guard.stop)
         self.payload = {
             "organization_id": "org", "name": "Agent", "email": "agent@example.com",
             "password": "long password for testing", "role": "AGENT",
@@ -48,14 +55,12 @@ class UserRoutesTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("password", properties)
         self.assertNotIn("password_hash", properties)
 
-    async def test_blank_organization_returns_400_without_database_query(self):
+    async def test_blank_organization_is_denied_without_database_query(self):
         status, body = await self.request(
             "POST", "/users", self.payload | {"organization_id": " "},
         )
-        self.assertEqual(status, 400)
-        self.assertEqual(body, {
-            "success": False, "message": "Organization ID is required", "data": None,
-        })
+        self.assertEqual(status, 403)
+        self.assertFalse(body["success"])
         self.assertEqual(self.db.mock_calls, [])
 
     async def test_all_user_handlers_are_registered_in_main(self):
@@ -125,7 +130,7 @@ class UserRoutesTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_lists_support_empty_results_and_hide_credentials(self):
         for path, method, kwargs in (
-            ("/users", "get_users", {}),
+            ("/users", "get_users_by_organization_id", {"organization_id": "org"}),
             ("/users/by-organization/org", "get_users_by_organization_id", {"organization_id": "org"}),
         ):
             for users in ([], [self.user]):
@@ -167,7 +172,7 @@ class UserRoutesTests(unittest.IsolatedAsyncioTestCase):
             ("POST", "/users", "create_user", user_exceptions.ExistingEmailError(), 409),
             ("PATCH", "/users/user", "update_user", user_exceptions.InvalidUserRoleError(), 400),
             ("DELETE", "/users/user", "delete_user", user_exceptions.UserInUseError(), 409),
-            ("GET", "/users/by-organization/missing", "get_users_by_organization_id",
+            ("GET", "/users/by-organization/org", "get_users_by_organization_id",
              organization_exceptions.OrganizationNotFoundError(), 404),
         )
         for method, path, service_name, error, expected_status in cases:

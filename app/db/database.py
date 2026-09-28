@@ -11,7 +11,8 @@ DATABASE_URL= os.getenv('DATABASE_URL')
 
 engine = create_engine(
     DATABASE_URL,
-    echo=True
+    echo=False,
+    hide_parameters=True,
 )
 
 SessionLocal = sessionmaker(

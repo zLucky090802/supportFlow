@@ -5,6 +5,9 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
+from app.dependencies.auth import get_current_user, require_roles
+from app.models.generated_models import Users
+from app.services import authorization_service as authorization
 
 from app.schemas.conversations import (
     ConversationCreate,
@@ -31,12 +34,11 @@ router = APIRouter(
     response_model=ConversationListResponse
 )
 def get_conversations(
+    actor: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
-        conversations = conversation_service.get_conversations(
-            db=db
-        )
+        conversations = authorization.list_conversations(db, actor)
 
         response = {
             "success": True,
@@ -66,13 +68,12 @@ def get_conversations(
 )
 def get_conversation_by_organization_id(
     organization_id: str,
+    actor: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    authorization.require_organization(actor, organization_id)
     conversations = (
-        conversation_service.get_conversation_by_organization_id(
-            db=db,
-            organization_id=organization_id
-        )
+        authorization.list_conversations(db, actor)
     )
 
     return {
@@ -90,13 +91,11 @@ def get_conversation_by_organization_id(
 )
 def get_conversation_by_customer_id(
     customer_id: str,
+    actor: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     conversations = (
-        conversation_service.get_conversation_by_customer_id(
-            db=db,
-            customer_id=customer_id
-        )
+        authorization.list_conversations(db, actor, customer_id=customer_id)
     )
 
     return {
@@ -114,8 +113,10 @@ def get_conversation_by_customer_id(
 )
 def get_conversation(
     conversation_id: str,
+    actor: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    authorization.require_conversation(db, actor, conversation_id)
     conversation = conversation_service.get_conversation_by_id(
         db=db,
         conversation_id=conversation_id
@@ -136,8 +137,11 @@ def get_conversation(
 )
 def create_conversation(
     data: ConversationCreate,
+    actor: Users = Depends(require_roles("ADMIN", "SUPERVISOR")),
     db: Session = Depends(get_db)
 ):
+    authorization.require_organization(actor, data.organization_id)
+    authorization.require_customer(db, actor, data.customer_id)
     new_conversation = conversation_service.create_conversation(
         db=db,
         conversation=data
@@ -159,8 +163,10 @@ def create_conversation(
 def update_conversation(
     conversation_id: str,
     data: ConversationUpdate,
+    actor: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    authorization.require_conversation(db, actor, conversation_id)
     updated = conversation_service.update_conversation(
         db=db,
         data=data,

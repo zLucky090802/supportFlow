@@ -8,17 +8,19 @@ The following permission model is agreed for the authorization stage:
 | Capability | ADMIN | SUPERVISOR | AGENT |
 | --- | --- | --- | --- |
 | Manage users | Yes | No | No |
-| View conversations | All within the organization | Team conversations | Assigned conversations |
+| View conversations | All within the organization | Permitted operational conversations within the organization | Assigned conversations |
 | Assign/reassign conversations | Yes | Yes, within the team | No |
 | Supervise agents | Yes | Yes | No |
 | Consult metrics | Yes | Yes | No |
 | Manage operational settings | Yes | No critical settings | No |
 | Reply and update conversation status | Within defined permissions | Within defined permissions | Assigned conversations, within defined permissions |
 
-This stage validates stored role values, not caller permissions. Authentication,
-team membership, endpoint authorization and organization scoping based on the
-authenticated caller must be implemented before exposing these operations as
-protected features. No role alone establishes the caller's identity.
+JWT establishes the caller's identity and reloads their current role from the
+database. User management is ADMIN-only within their organization; agents access
+assigned conversations. SUPERVISOR accesses permitted operational conversations
+within their organization. Currently there is no additional conversation-level
+restriction model, so organization scope defines this operational access.
+Reassignment, metrics and advanced settings remain future features.
 
 ## User service
 
@@ -37,5 +39,5 @@ protected features. No role alone establishes the caller's identity.
 
 HTTP routes are registered in `app/routes/api.py` and user exception handlers in
 `app/main.py`. Swagger exposes the user operations under `/users`.
-Authentication and permission enforcement remain pending; these operations are
-currently unauthenticated and intended for local development.
+Authentication and initial role/resource checks are applied to these operations.
+See [authentication setup and limitations](authentication.md).
