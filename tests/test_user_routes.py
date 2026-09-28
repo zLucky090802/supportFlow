@@ -4,27 +4,21 @@ import unittest
 from unittest.mock import Mock, patch
 from urllib.parse import urlencode, urlsplit
 
-from fastapi import FastAPI
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.exceptions import organization_exceptions, user_exceptions
-from app.handlers.organization_handlers import register_exception_handlers
-from app.handlers.user_handlers import register_user_handlers
 from app.models.generated_models import Users
 
 with patch.dict(os.environ, {"DATABASE_URL": "sqlite://"}):
     from app.db.database import get_db
-    from app.routes.users import router
+    from app.main import app
 
 
 class UserRoutesTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        # Exercise the router independently; application registration is a later task.
-        self.app = FastAPI()
-        self.app.include_router(router)
-        register_user_handlers(self.app)
-        register_exception_handlers(self.app)
+        self.app = app
+        self.previous_overrides = self.app.dependency_overrides.copy()
         self.db = Mock(spec=Session)
         self.app.dependency_overrides[get_db] = lambda: self.db
         self.user = Users(
@@ -35,6 +29,54 @@ class UserRoutesTests(unittest.IsolatedAsyncioTestCase):
             "organization_id": "org", "name": "Agent", "email": "agent@example.com",
             "password": "long password for testing", "role": "AGENT",
         }
+
+    def tearDown(self):
+        self.app.dependency_overrides.clear()
+        self.app.dependency_overrides.update(self.previous_overrides)
+
+    async def test_user_paths_are_present_in_openapi(self):
+        status, body = await self.request("GET", "/openapi.json")
+        self.assertEqual(status, 200)
+        for path, methods in {
+            "/users": {"get", "post"},
+            "/users/{user_id}": {"get", "patch", "delete"},
+            "/users/by-email": {"get"},
+            "/users/by-organization/{organization_id}": {"get"},
+        }.items():
+            self.assertEqual(set(body["paths"][path]), methods)
+        properties = body["components"]["schemas"]["UserResponse"]["properties"]
+        self.assertNotIn("password", properties)
+        self.assertNotIn("password_hash", properties)
+
+    async def test_blank_organization_returns_400_without_database_query(self):
+        status, body = await self.request(
+            "POST", "/users", self.payload | {"organization_id": " "},
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(body, {
+            "success": False, "message": "Organization ID is required", "data": None,
+        })
+        self.assertEqual(self.db.mock_calls, [])
+
+    async def test_all_user_handlers_are_registered_in_main(self):
+        cases = (
+            (user_exceptions.UserIDRequiredError, 400),
+            (user_exceptions.UserNotFoundError, 404),
+            (user_exceptions.InvalidUserNameError, 400),
+            (user_exceptions.InvalidUserEmailError, 400),
+            (user_exceptions.InvalidUserPasswordError, 400),
+            (user_exceptions.InvalidUserRoleError, 400),
+            (user_exceptions.ExistingEmailError, 409),
+            (user_exceptions.UserOrganizationMismatchError, 400),
+            (user_exceptions.UserInUseError, 409),
+        )
+        for exception_type, expected_status in cases:
+            with self.subTest(exception=exception_type.__name__):
+                error = exception_type()
+                with patch("app.routes.users.user_service.create_user", side_effect=error):
+                    status, body = await self.request("POST", "/users", self.payload)
+                self.assertEqual(status, expected_status)
+                self.assertEqual(body, {"success": False, "message": str(error), "data": None})
 
     async def request(self, method, url, body=None):
         events = []

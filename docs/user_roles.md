@@ -35,5 +35,7 @@ protected features. No role alone establishes the caller's identity.
 - Omitted or null update fields preserve current values.
 - Deletion is blocked while conversations reference the user.
 
-HTTP routes and registration of user handlers in the application remain for the
-following stages. No authentication or permission enforcement is claimed here.
+HTTP routes are registered in `app/routes/api.py` and user exception handlers in
+`app/main.py`. Swagger exposes the user operations under `/users`.
+Authentication and permission enforcement remain pending; these operations are
+currently unauthenticated and intended for local development.

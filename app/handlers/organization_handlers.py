@@ -5,6 +5,16 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.exceptions import organization_exceptions
 
 def register_exception_handlers(app: FastAPI):  
+    @app.exception_handler(organization_exceptions.OrganizationIDRequired)
+    async def organization_id_required_handler(
+        request: Request,
+        exc: organization_exceptions.OrganizationIDRequired,
+    ):
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "message": str(exc), "data": None},
+        )
+
     @app.exception_handler(
         organization_exceptions.OrganizationNotFoundError
     )
@@ -98,4 +108,3 @@ def register_exception_handlers(app: FastAPI):
                 "data": None
             }
         )
-        
