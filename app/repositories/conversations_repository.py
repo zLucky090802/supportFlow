@@ -105,3 +105,16 @@ def update_conversation(
     except SQLAlchemyError:
         db.rollback()
         raise
+
+def get_scoped_conversations(
+    db: Session,
+    organization_id: str,
+    assigned_agent_id: str | None = None,
+    customer_id: str | None = None,
+):
+    stmt = select(Conversations).where(Conversations.organization_id == organization_id)
+    if assigned_agent_id is not None:
+        stmt = stmt.where(Conversations.assigned_agent_id == assigned_agent_id)
+    if customer_id is not None:
+        stmt = stmt.where(Conversations.customer_id == customer_id)
+    return db.scalars(stmt).all()

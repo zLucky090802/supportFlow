@@ -18,6 +18,7 @@ from app.models.generated_models import Messages, MessagesSenderType
 with patch.dict(os.environ, {"DATABASE_URL": "sqlite://"}):
     from app.db.database import get_db
     from app.main import app
+    from app.dependencies.auth import get_current_user
 
 
 class MessageRoutesTests(unittest.IsolatedAsyncioTestCase):
@@ -25,6 +26,15 @@ class MessageRoutesTests(unittest.IsolatedAsyncioTestCase):
         self.db = Mock(spec=Session)
         self.previous_overrides = app.dependency_overrides.copy()
         app.dependency_overrides[get_db] = lambda: self.db
+        from app.models.generated_models import Users
+        app.dependency_overrides[get_current_user] = lambda: Users(
+            id="agent", organization_id="org", role="AGENT",
+        )
+        # Authorization itself is exercised in dedicated security tests.
+        for name in ("require_conversation", "require_message", "require_message_sender"):
+            guard = patch("app.routes.messages.authorization." + name)
+            guard.start()
+            self.addCleanup(guard.stop)
         self.payload = {
             "conversation_id": "conversation",
             "sender_type": "AI",
