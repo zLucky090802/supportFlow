@@ -265,6 +265,7 @@ class Users(Base):
     )
 
     created_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+        "create_at",
         TIMESTAMP,
         server_default=text("CURRENT_TIMESTAMP"),
     )
