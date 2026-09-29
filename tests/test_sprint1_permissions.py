@@ -118,7 +118,7 @@ class Sprint1PermissionTests(unittest.IsolatedAsyncioTestCase):
                 for path in ("/messages/message-" + conversation_id, "/messages/by-conversation/" + conversation_id):
                     await self.check(actor, "GET", path, 200 if allowed else 404 if conversation_id == "foreign-conversation" else 403)
                 response = await self.check(actor, "POST", "/messages", 201 if allowed else 404 if conversation_id == "foreign-conversation" else 403, {
-                    "conversation_id": conversation_id, "sender_type": "AGENT", "sender_id": actor, "content": "Reply",
+                    "conversation_id": conversation_id, "content": "Reply",
                 })
                 if allowed:
                     successful_posts += 1
@@ -128,7 +128,7 @@ class Sprint1PermissionTests(unittest.IsolatedAsyncioTestCase):
     async def test_all_roles_cannot_impersonate_sender(self):
         for actor in ("admin", "supervisor", "agent"):
             for sender_type, sender_id in (("CUSTOMER", "customer"), ("AI", None), ("AGENT", "foreign")):
-                await self.check(actor, "POST", "/messages", 403, {
+                await self.check(actor, "POST", "/messages", 422, {
                     "conversation_id": "assigned", "sender_type": sender_type,
                     "sender_id": sender_id, "content": "Spoofed",
                 })

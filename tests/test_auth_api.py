@@ -157,11 +157,12 @@ class AuthAPITests(unittest.IsolatedAsyncioTestCase):
 
     async def test_agent_can_reply_as_self_but_cannot_impersonate(self):
         token = create_access_token("agent")
-        payload = {"conversation_id": "assigned", "sender_type": "AGENT", "sender_id": "agent", "content": "Reply"}
+        payload = {"conversation_id": "assigned", "content": "Reply"}
         self.assertEqual((await self.request("POST", "/messages", payload, token))[0], 201)
         for change in ({"sender_type": "AI", "sender_id": None}, {"sender_id": "admin"},
                        {"conversation_id": "unassigned"}, {"conversation_id": "foreign-conversation"}):
-            expected = 404 if change.get("conversation_id") == "foreign-conversation" else 403
+            expected = (422 if "sender_type" in change or "sender_id" in change else
+                        404 if change.get("conversation_id") == "foreign-conversation" else 403)
             self.assertEqual((await self.request("POST", "/messages", payload | change, token))[0], expected)
 
     async def test_role_changes_and_deleted_users_take_effect_with_existing_token(self):

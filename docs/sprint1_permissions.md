@@ -36,9 +36,9 @@ All permissions in this table are limited to the caller's organization.
 | Organizations: update own | Allowed | Denied | Denied |
 | Organizations: create/delete | Denied pending onboarding policy | Denied | Denied |
 
-Message creation still requires `sender_type=AGENT` and `sender_id` equal to the
-authenticated user's ID; spoofing is denied. Deriving sender fields entirely in
-the backend belongs to Sprint 3. Message editing/deletion remain unavailable.
+Since Sprint 3, message creation derives `sender_type=AGENT` and `sender_id` from
+the authenticated user. Client-supplied sender fields are rejected with 422.
+See [the message contract](sprint3_messages.md). Editing/deletion remain unavailable.
 
 `/auth/me` returns the caller's own account. `/db-health` is an ADMIN-only technical
 diagnostic and does not select tenant resources. Neither grants platform-wide

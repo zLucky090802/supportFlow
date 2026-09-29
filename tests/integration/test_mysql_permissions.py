@@ -136,9 +136,21 @@ class MySQLPermissionsTests(unittest.TestCase):
         self.assertEqual(self.request("GET", "/conversations/me", token=tokens["agent"])[1]["data"], [])
         mine = self.request("GET", "/conversations/me", token=tokens["second"])[1]["data"]
         self.assertEqual([item["id"] for item in mine], [self.ids["conversation"]])
-        message = {"conversation_id": self.ids["conversation"], "sender_type": "AGENT",
-                   "sender_id": self.ids["second"], "content": "MySQL integration message"}
-        self.assertEqual(self.request("POST", "/messages", message, tokens["second"])[0], 201)
+        message = {"conversation_id": self.ids["conversation"], "content": "MySQL integration message"}
+        status, response = self.request("POST", "/messages", message, tokens["second"])
+        self.assertEqual(status, 201)
+        self.assertEqual(response["data"]["sender_id"], self.ids["second"])
+        self.assertEqual(response["data"]["sender_type"], "AGENT")
+        for role in ("admin", "supervisor", "second"):
+            status, response = self.request("POST", path + "/messages", {"content": "Nested message"}, tokens[role])
+            self.assertEqual(status, 201)
+            self.assertEqual(response["data"]["sender_id"], self.ids[role])
+            self.assertEqual(response["data"]["sender_type"], "AGENT")
+        self.assertEqual(self.request("POST", path + "/messages", {"content": "Spoof", "sender_type": "AI"}, tokens["admin"])[0], 422)
+        self.assertEqual(self.request("POST", "/messages", message | {"sender_id": self.ids["admin"]}, tokens["second"])[0], 422)
+        status, history = self.request("GET", path + "/messages", token=tokens["second"])
+        self.assertEqual(status, 200)
+        self.assertEqual(len(history["data"]), 4)
         status, body = self.request("PATCH", path, {"status": "RESOLVED"}, tokens["second"])
         self.assertEqual(status, 200)
         self.assertIsNotNone(body["data"]["resolved_at"])
@@ -151,7 +163,7 @@ class MySQLPermissionsTests(unittest.TestCase):
         from app.routes.conversation import update_conversation
         from app.routes.messages import create_message
         from app.schemas.conversations import ConversationUpdate
-        from app.schemas.messages import MessageCreate
+        from app.schemas.messages import StaffMessageCreate
 
         for operation in ("message", "status"):
             with self.subTest(operation=operation), self.session() as owner:
@@ -175,8 +187,8 @@ class MySQLPermissionsTests(unittest.TestCase):
                         try:
                             with self.assertRaises(PermissionDeniedError):
                                 if operation == "message":
-                                    create_message(MessageCreate(conversation_id=self.ids["conversation"],
-                                        sender_type="AGENT", sender_id=actor.id, content="Must be rejected"), actor, db)
+                                    create_message(StaffMessageCreate(conversation_id=self.ids["conversation"],
+                                        content="Must be rejected"), actor, db)
                                 else:
                                     update_conversation(self.ids["conversation"], ConversationUpdate(status="RESOLVED"), actor, db)
                         finally:

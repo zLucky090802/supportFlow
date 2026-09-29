@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.exceptions import customer_exceptions, message_exceptions
-from app.models.generated_models import Messages, MessagesSenderType
+from app.models.generated_models import Messages, MessagesSenderType, Users
 from app.repositories import (
     customers_repository,
     messages_repository,
@@ -37,6 +37,29 @@ def get_messages_by_conversation_id(
         db=db,
         conversation_id=conversation.id,
     )
+
+
+def create_staff_message(
+    db: Session, actor: Users, conversation_id: str, content: str,
+) -> Messages:
+    """Authorize and persist under the same conversation assignment lock."""
+    from app.services import authorization_service as authorization
+
+    try:
+        conversation = authorization.require_conversation(
+            db, actor, conversation_id, lock=True,
+        )
+        content = content.strip()
+        if not content:
+            raise message_exceptions.InvalidMessageContentError()
+        return messages_repository.create_message(
+            db=db, conversation_id=conversation.id,
+            sender_type=MessagesSenderType.AGENT, sender_id=actor.id,
+            content=content,
+        )
+    except Exception:
+        db.rollback()
+        raise
 
 
 def create_message(db: Session, message: MessageCreate) -> Messages:

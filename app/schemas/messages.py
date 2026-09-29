@@ -11,10 +11,9 @@ from pydantic import (
 from app.models.generated_models import MessagesSenderType
 
 
-class MessageCreate(BaseModel):
-    conversation_id: str
-    sender_type: MessagesSenderType
-    sender_id: str | None = None
+class MessageContent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     content: str = Field(min_length=1)
 
     @field_validator("content")
@@ -26,6 +25,18 @@ class MessageCreate(BaseModel):
             raise ValueError("Message content cannot be empty")
 
         return value
+
+
+class StaffMessageCreate(MessageContent):
+    conversation_id: str
+
+
+class MessageCreate(MessageContent):
+    """Trusted integration input; never accepted by staff HTTP endpoints."""
+
+    conversation_id: str
+    sender_type: MessagesSenderType
+    sender_id: str | None = None
 
 
 class MessageResponse(BaseModel):

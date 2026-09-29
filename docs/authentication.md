@@ -64,9 +64,10 @@ See the [Sprint 1 endpoint policy and test scope](sprint1_permissions.md).
 - ADMIN sees all conversations in their organization. SUPERVISOR accesses permitted
   operational conversations in their organization; there are currently no additional
   conversation-level restrictions. AGENT lists/reads/updates assigned conversations only.
-- Message reads follow conversation access. Staff messages require
-  `sender_type=AGENT` and the authenticated user's own `sender_id`. AI/customer
-  ingestion needs a separate authenticated integration.
+- Message reads follow conversation access. Staff sender fields are derived from
+  the JWT user and cannot be supplied in the request. See
+  [Sprint 3](sprint3_messages.md). AI/customer ingestion needs a separate
+  authenticated integration.
 - Organization reads are scoped to the caller's organization and updates to
   ADMIN. Creation/deletion are denied pending trusted onboarding/platform
   permissions. No OWNER role is introduced.
@@ -74,17 +75,20 @@ See the [Sprint 1 endpoint policy and test scope](sprint1_permissions.md).
 
 ## Limitations and QA
 
-No refresh tokens, logout revocation, MFA, password reset, teams or reassignment
-endpoints are included. Password changes do not revoke existing JWTs; tokens
+No refresh tokens, logout revocation, MFA, password reset or teams are included.
+Assignment/reassignment endpoints are documented in [Sprint 2](sprint2_assignment.md).
+Password changes do not revoke existing JWTs; tokens
 expire within 30 minutes. Add rate limiting and HTTPS before public exposure:
 scrypt uses substantial CPU/memory per verification. Tokens must not be logged.
 
-Email lookup distinguishes unknown accounts (404) from inaccessible accounts
-(403); a future privacy pass should normalize this and duplicate-email behavior.
+Unknown and cross-tenant resources share the same generic 404 response. Global
+email uniqueness can still reveal availability on create/update (non-blocking
+Sprint 2 observation).
 
 Tests cover real JWTs, real scrypt hashes, SQLite persistence, role changes,
-tenant boundaries, assignment boundaries and impersonation attempts. MySQL and
-deployment-level concurrency/throttling require environment-specific QA.
+tenant boundaries, assignment boundaries and impersonation attempts. Opt-in MySQL
+tests use the configured get_db connection and exercise concurrent reassignment
+versus message/status writes. Deployment-level throttling is not tested.
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -q
