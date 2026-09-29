@@ -37,7 +37,6 @@ class MessageRoutesTests(unittest.IsolatedAsyncioTestCase):
             self.addCleanup(guard.stop)
         self.payload = {
             "conversation_id": "conversation",
-            "sender_type": "AI",
             "content": "hello",
         }
         self.message = Messages(
@@ -77,7 +76,7 @@ class MessageRoutesTests(unittest.IsolatedAsyncioTestCase):
         return status, json.loads(content)
 
     async def test_create_serializes_orm_message_and_passes_validated_schema(self):
-        with patch("app.routes.messages.message_service.create_message", return_value=self.message) as create:
+        with patch("app.routes.messages.message_service.create_staff_message", return_value=self.message) as create:
             status, body = await self.request("POST", "/messages", self.payload)
         self.assertEqual(status, 201)
         self.assertTrue(body["success"])
@@ -86,7 +85,7 @@ class MessageRoutesTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(body["data"]["sender_id"])
         self.assertTrue(body["data"]["created_at"].startswith("2026-01-01T00:00:00"))
         self.assertIs(create.call_args.kwargs["db"], self.db)
-        self.assertEqual(create.call_args.kwargs["message"].content, "hello")
+        self.assertEqual(create.call_args.kwargs["content"], "hello")
 
     async def test_get_message(self):
         with patch("app.routes.messages.message_service.get_message_by_id", return_value=self.message) as get:
@@ -115,7 +114,7 @@ class MessageRoutesTests(unittest.IsolatedAsyncioTestCase):
             (message_exceptions.InvalidMessageSenderError(), 400),
         ):
             with self.subTest(exception=type(exception).__name__):
-                with patch("app.routes.messages.message_service.create_message", side_effect=exception):
+                with patch("app.routes.messages.message_service.create_staff_message", side_effect=exception):
                     status, body = await self.request("POST", "/messages", self.payload)
                 self.assertEqual(status, expected_status)
                 self.assertEqual(body, {"success": False, "message": "Resource not found" if expected_status == 404 else str(exception), "data": None})
@@ -128,7 +127,7 @@ class MessageRoutesTests(unittest.IsolatedAsyncioTestCase):
             (customer_exceptions.CustomerOrganizationMismatchError(), 400),
         ):
             with self.subTest(exception=type(exception).__name__):
-                with patch("app.routes.messages.message_service.create_message", side_effect=exception):
+                with patch("app.routes.messages.message_service.create_staff_message", side_effect=exception):
                     status, body = await self.request("POST", "/messages", self.payload)
                 self.assertEqual(status, expected_status)
                 self.assertEqual(body, {"success": False, "message": "Resource not found" if expected_status == 404 else str(exception), "data": None})
@@ -136,13 +135,13 @@ class MessageRoutesTests(unittest.IsolatedAsyncioTestCase):
     async def test_schema_rejects_invalid_requests_before_service(self):
         for overrides in ({"content": " "}, {"sender_type": "UNKNOWN"}, {"conversation_id": None}):
             with self.subTest(overrides=overrides):
-                with patch("app.routes.messages.message_service.create_message") as create:
+                with patch("app.routes.messages.message_service.create_staff_message") as create:
                     status, _ = await self.request("POST", "/messages", self.payload | overrides)
                 self.assertEqual(status, 422)
                 create.assert_not_called()
 
     async def test_database_errors_do_not_leak_details(self):
-        with patch("app.routes.messages.message_service.create_message", side_effect=SQLAlchemyError("secret SQL details")):
+        with patch("app.routes.messages.message_service.create_staff_message", side_effect=SQLAlchemyError("secret SQL details")):
             status, body = await self.request("POST", "/messages", self.payload)
         self.assertEqual(status, 500)
         self.assertEqual(body, {
