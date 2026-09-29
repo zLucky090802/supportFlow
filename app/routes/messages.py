@@ -67,8 +67,12 @@ def create_message(
     actor: Users = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    authorization.require_message_sender(db, actor, data)
-    message = message_service.create_message(db=db, message=data)
+    try:
+        authorization.require_message_sender(db, actor, data, lock=True)
+        message = message_service.create_message(db=db, message=data)
+    except Exception:
+        db.rollback()
+        raise
     return {
         "success": True,
         "message": "Message created successfully",

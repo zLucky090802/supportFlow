@@ -1,7 +1,7 @@
 """Resource authorization for authenticated staff endpoints."""
 from sqlalchemy.orm import Session
 
-from app.exceptions.auth_exceptions import PermissionDeniedError
+from app.exceptions.auth_exceptions import PermissionDeniedError, ResourceNotFoundError
 from app.models.generated_models import Users
 from app.repositories import conversations_repository
 from app.services import conversations, customer_service, message_service, user_service
@@ -9,7 +9,7 @@ from app.services import conversations, customer_service, message_service, user_
 
 def require_organization(actor: Users, organization_id: str) -> None:
     if not actor.organization_id or not organization_id or actor.organization_id != organization_id.strip():
-        raise PermissionDeniedError()
+        raise ResourceNotFoundError()
 
 
 def require_role(actor: Users, *roles: str) -> None:
@@ -49,8 +49,13 @@ def require_customer(db: Session, actor: Users, customer_id: str):
     return customer
 
 
-def require_conversation(db: Session, actor: Users, conversation_id: str):
-    conversation = conversations.get_conversation_by_id(db, conversation_id)
+def require_conversation(db: Session, actor: Users, conversation_id: str, *, lock: bool = False):
+    if lock:
+        conversation = conversations_repository.get_conversation_for_update(db, conversation_id.strip())
+        if conversation is None:
+            raise ResourceNotFoundError()
+    else:
+        conversation = conversations.get_conversation_by_id(db, conversation_id)
     require_organization(actor, conversation.organization_id)
     require_role(actor, "ADMIN", "SUPERVISOR", "AGENT")
     if actor.role == "AGENT" and conversation.assigned_agent_id != actor.id:
@@ -82,7 +87,7 @@ def require_message(db: Session, actor: Users, message_id: str):
     return message
 
 
-def require_message_sender(db: Session, actor: Users, message) -> None:
-    require_conversation(db, actor, message.conversation_id)
+def require_message_sender(db: Session, actor: Users, message, *, lock: bool = False) -> None:
+    require_conversation(db, actor, message.conversation_id, lock=lock)
     if message.sender_type != "AGENT" or message.sender_id != actor.id:
         raise PermissionDeniedError()

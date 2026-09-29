@@ -15,6 +15,14 @@ def get_user_by_id(db: Session, user_id: str) -> Users | None:
     return db.get(Users, user_id)
 
 
+def get_user_for_update(db: Session, user_id: str) -> Users | None:
+    stmt = (
+        select(Users).where(Users.id == user_id)
+        .with_for_update().execution_options(populate_existing=True)
+    )
+    return db.scalar(stmt)
+
+
 def has_assigned_conversations(db: Session, user_id: str) -> bool:
     stmt = select(Conversations.id).where(
         Conversations.assigned_agent_id == user_id

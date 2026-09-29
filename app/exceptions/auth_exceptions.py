@@ -11,3 +11,8 @@ class PermissionDeniedError(Exception):
 class AuthConfigurationError(Exception):
     def __init__(self):
         super().__init__("Authentication is temporarily unavailable")
+
+
+class ResourceNotFoundError(Exception):
+    def __init__(self):
+        super().__init__("Resource not found")

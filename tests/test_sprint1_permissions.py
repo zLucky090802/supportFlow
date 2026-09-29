@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import test_auth_api as auth_fixture
-from app.exceptions.auth_exceptions import PermissionDeniedError
+from app.exceptions.auth_exceptions import PermissionDeniedError, ResourceNotFoundError
 from app.models.generated_models import Conversations, Customers, Messages, Organizations, Users
 from app.security.tokens import create_access_token
 from app.services import authorization_service as authorization
@@ -56,13 +56,13 @@ class Sprint1PermissionTests(unittest.IsolatedAsyncioTestCase):
     async def test_all_roles_cross_tenant_user_reads_and_writes_denied(self):
         for actor in ("admin", "supervisor", "agent"):
             for path in ("/users/foreign", "/users/by-organization/other"):
-                await self.check(actor, "GET", path, 403)
-            await self.check(actor, "POST", "/users", 403, {
+                await self.check(actor, "GET", path, 404)
+            await self.check(actor, "POST", "/users", 404, {
                 "organization_id": "other", "name": "Blocked", "email": "blocked@example.com",
                 "password": self.password, "role": "ADMIN",
             })
-            await self.check(actor, "PATCH", "/users/foreign", 403, {"name": "Blocked"})
-            await self.check(actor, "DELETE", "/users/foreign", 403)
+            await self.check(actor, "PATCH", "/users/foreign", 404, {"name": "Blocked"})
+            await self.check(actor, "DELETE", "/users/foreign", 404)
         self.db.expire_all()
         self.assertEqual(self.db.get(Users, "foreign").name, "foreign")
         self.assertEqual(self.db.query(Users).count(), 4)
@@ -76,19 +76,19 @@ class Sprint1PermissionTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(response["data"]["organization_id"], "org")
             for payload in ({"organization_id": "other", "customer_id": "foreign-customer"},
                             {"organization_id": "org", "customer_id": "foreign-customer"}):
-                await self.check(actor, "POST", "/conversations", 403, payload)
+                await self.check(actor, "POST", "/conversations", 404, payload)
         self.assertEqual(self.db.query(Conversations).count(), 5)
 
     async def test_all_roles_cross_tenant_customer_and_organization_operations_denied(self):
         for actor in ("admin", "supervisor", "agent"):
             for path in ("/customer/foreign-customer", "/customer/organizations/other/customers", "/organizations/other"):
-                await self.check(actor, "GET", path, 403)
-            await self.check(actor, "POST", "/customer", 403, {
+                await self.check(actor, "GET", path, 404)
+            await self.check(actor, "POST", "/customer", 404, {
                 "organization_id": "other", "name": "Blocked", "email": "blocked@example.com",
             })
             for path in ("/customer/foreign-customer", "/organizations/other"):
-                await self.check(actor, "PATCH", path, 403, {"name": "Blocked"})
-                await self.check(actor, "DELETE", path, 403)
+                await self.check(actor, "PATCH", path, 404, {"name": "Blocked"})
+                await self.check(actor, "DELETE", path, 403 if path.startswith("/organizations") else 404)
         self.db.expire_all()
         self.assertEqual(self.db.get(Customers, "foreign-customer").name, "Foreign")
         self.assertEqual(self.db.get(Organizations, "other").name, "Other")
@@ -103,10 +103,10 @@ class Sprint1PermissionTests(unittest.IsolatedAsyncioTestCase):
             for conversation_id in ("assigned", "unassigned", "foreign-conversation"):
                 allowed = conversation_id in expected_ids
                 path = "/conversations/" + conversation_id
-                await self.check(actor, "GET", path, 200 if allowed else 403)
-                await self.check(actor, "PATCH", path, 200 if allowed else 403, {"status": "ESCALATED"})
+                await self.check(actor, "GET", path, 200 if allowed else 404 if conversation_id == "foreign-conversation" else 403)
+                await self.check(actor, "PATCH", path, 200 if allowed else 404 if conversation_id == "foreign-conversation" else 403, {"status": "ESCALATED"})
             for path in ("/conversations/by-organization/other", "/conversations/by-customer/foreign-customer"):
-                await self.check(actor, "GET", path, 403)
+                await self.check(actor, "GET", path, 404)
         self.db.expire_all()
         self.assertEqual(self.db.get(Conversations, "foreign-conversation").status, "OPEN")
 
@@ -116,8 +116,8 @@ class Sprint1PermissionTests(unittest.IsolatedAsyncioTestCase):
             for conversation_id in ("assigned", "unassigned", "foreign-conversation"):
                 allowed = conversation_id != "foreign-conversation" and (actor != "agent" or conversation_id == "assigned")
                 for path in ("/messages/message-" + conversation_id, "/messages/by-conversation/" + conversation_id):
-                    await self.check(actor, "GET", path, 200 if allowed else 403)
-                response = await self.check(actor, "POST", "/messages", 201 if allowed else 403, {
+                    await self.check(actor, "GET", path, 200 if allowed else 404 if conversation_id == "foreign-conversation" else 403)
+                response = await self.check(actor, "POST", "/messages", 201 if allowed else 404 if conversation_id == "foreign-conversation" else 403, {
                     "conversation_id": conversation_id, "sender_type": "AGENT", "sender_id": actor, "content": "Reply",
                 })
                 if allowed:
@@ -142,7 +142,7 @@ class PermissionOrderTests(unittest.TestCase):
             for method in (authorization.require_user_management, authorization.require_customer_management,
                            authorization.require_organization_management):
                 with self.subTest(role=role, method=method.__name__), patch.object(authorization, "require_role") as role_check:
-                    with self.assertRaises(PermissionDeniedError):
+                    with self.assertRaises(ResourceNotFoundError):
                         method(actor, "foreign")
                     role_check.assert_not_called()
 
@@ -150,7 +150,7 @@ class PermissionOrderTests(unittest.TestCase):
         actor = SimpleNamespace(id="actor", role="AGENT", organization_id="org")
         with patch.object(authorization.user_service, "get_user_by_id", return_value=SimpleNamespace(organization_id="foreign")), \
              patch.object(authorization, "require_role") as role_check:
-            with self.assertRaises(PermissionDeniedError):
+            with self.assertRaises(ResourceNotFoundError):
                 authorization.require_user(None, actor, "foreign-user")
             role_check.assert_not_called()
 
@@ -159,11 +159,11 @@ class PermissionOrderTests(unittest.TestCase):
         foreign = SimpleNamespace(organization_id="foreign", assigned_agent_id="actor")
         with patch.object(authorization.conversations, "get_conversation_by_id", return_value=foreign), \
              patch.object(authorization, "require_role") as role_check:
-            with self.assertRaises(PermissionDeniedError):
+            with self.assertRaises(ResourceNotFoundError):
                 authorization.require_conversation(None, actor, "foreign-conversation")
             role_check.assert_not_called()
         with patch.object(authorization.customer_service, "get_customer_by_id", return_value=foreign), \
              patch.object(authorization, "require_role") as role_check:
-            with self.assertRaises(PermissionDeniedError):
+            with self.assertRaises(ResourceNotFoundError):
                 authorization.require_conversation_creation(None, actor, "org", "foreign-customer")
             role_check.assert_not_called()

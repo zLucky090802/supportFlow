@@ -17,9 +17,9 @@ not retrieve unrestricted lists and then filter the response in memory.
 Authentication rejects unsupported roles; resource authorization also explicitly
 checks allowed roles as defense in depth.
 
-When a resource cannot be found, its service returns 404 before resource permission
-checks. Existing forbidden resources return 403. This distinction can disclose
-existence; normalizing it is a separate privacy hardening task.
+Missing resources and resources belonging to another organization return the same
+404 envelope (`Resource not found`). A denied role or assignment within the
+caller's organization returns 403. This privacy correction is included in Sprint 2.
 
 ## Current endpoint policy
 
@@ -52,6 +52,7 @@ Conversations and Messages. Cross-tenant writes are checked for persisted side
 effects, and direct tests verify that role checks are not called after a tenant
 mismatch. Existing tests cover related Customers and Organizations restrictions.
 
-The suite does not write to the configured MySQL database. MySQL deployment QA
-and concurrency between reassignment and message posting remain separate work.
-Assignment endpoints are Sprint 2; state-transition integration closure is Sprint 4.
+The default suite does not write to the configured MySQL database. Sprint 2 adds
+explicitly enabled MySQL integration and concurrent-write tests; see
+[Sprint 2](sprint2_assignment.md). Broader state-transition integration closure
+remains Sprint 4.

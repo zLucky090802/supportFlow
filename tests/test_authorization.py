@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 with patch.dict(os.environ, {"DATABASE_URL": "sqlite://"}):
     from app.db.database import get_db
 from app.dependencies.auth import get_current_user
-from app.exceptions.auth_exceptions import PermissionDeniedError
+from app.exceptions.auth_exceptions import PermissionDeniedError, ResourceNotFoundError
 from app.models.generated_models import Base, Conversations
 from app.routes import conversation, customers, messages, organizations, users
 from app.services import authorization_service as authorization
@@ -41,7 +41,7 @@ class ASGIClient:
                 "client": ("127.0.0.1", 123), "server": ("test", 80),
             }
             await self.app(scope, receive, send)
-            return SimpleNamespace(status_code=next(item["status"] for item in output if item["type"] == "http.response.start"))
+            return SimpleNamespace(status_code=next(item["status"] for item in output if item["type"] == "http.response.start"), body=b"".join(item.get("body", b"") for item in output if item["type"] == "http.response.body"))
         return asyncio.run(invoke())
 
     def get(self, path):
@@ -62,7 +62,7 @@ class AuthorizationTests(unittest.TestCase):
         self.actor = SimpleNamespace(id="agent", organization_id="org", role="AGENT")
 
     def test_cross_tenant_access_denied(self):
-        with self.assertRaises(PermissionDeniedError):
+        with self.assertRaises(ResourceNotFoundError):
             authorization.require_organization(self.actor, "other")
 
     def test_agent_access_requires_assignment(self):
@@ -73,7 +73,7 @@ class AuthorizationTests(unittest.TestCase):
             record.assigned_agent_id = self.actor.id
             self.assertIs(authorization.require_conversation(None, self.actor, "conversation"), record)
             record.organization_id = "other"
-            with self.assertRaises(PermissionDeniedError):
+            with self.assertRaises(ResourceNotFoundError):
                 authorization.require_conversation(None, self.actor, "conversation")
 
     def test_staff_cannot_impersonate_message_sender(self):
@@ -116,6 +116,8 @@ class ProtectedRoutesTests(unittest.TestCase):
         @self.app.exception_handler(PermissionDeniedError)
         async def forbidden(request, exc):
             return JSONResponse(status_code=403, content={"success": False})
+        from app.handlers.auth_handlers import register_auth_handlers
+        register_auth_handlers(self.app)
         self.client = ASGIClient(self.app)
 
     def login(self, role="AGENT"):
@@ -143,14 +145,14 @@ class ProtectedRoutesTests(unittest.TestCase):
 
     def test_admin_cannot_cross_tenant_or_delete_organization(self):
         self.login("ADMIN")
-        self.assertEqual(self.client.get("/users/by-organization/other").status_code, 403)
-        self.assertEqual(self.client.get("/conversations/by-organization/other").status_code, 403)
-        self.assertEqual(self.client.get("/organizations/other").status_code, 403)
+        self.assertEqual(self.client.get("/users/by-organization/other").status_code, 404)
+        self.assertEqual(self.client.get("/conversations/by-organization/other").status_code, 404)
+        self.assertEqual(self.client.get("/organizations/other").status_code, 404)
         self.assertEqual(self.client.delete("/organizations/org").status_code, 403)
 
     def test_foreign_user_update_does_not_write(self):
         self.login("ADMIN")
         foreign = SimpleNamespace(organization_id="other")
         with patch.object(authorization.user_service, "get_user_by_id", return_value=foreign), patch.object(authorization.user_service, "update_user") as update:
-            self.assertEqual(self.client.patch("/users/foreign", json={"name": "Changed"}).status_code, 403)
+            self.assertEqual(self.client.patch("/users/foreign", json={"name": "Changed"}).status_code, 404)
             update.assert_not_called()

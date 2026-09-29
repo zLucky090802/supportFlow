@@ -59,7 +59,7 @@ class UserRoutesTests(unittest.IsolatedAsyncioTestCase):
         status, body = await self.request(
             "POST", "/users", self.payload | {"organization_id": " "},
         )
-        self.assertEqual(status, 403)
+        self.assertEqual(status, 404)
         self.assertFalse(body["success"])
         self.assertEqual(self.db.mock_calls, [])
 
@@ -81,7 +81,7 @@ class UserRoutesTests(unittest.IsolatedAsyncioTestCase):
                 with patch("app.routes.users.user_service.create_user", side_effect=error):
                     status, body = await self.request("POST", "/users", self.payload)
                 self.assertEqual(status, expected_status)
-                self.assertEqual(body, {"success": False, "message": str(error), "data": None})
+                self.assertEqual(body, {"success": False, "message": "Resource not found" if expected_status == 404 else str(error), "data": None})
 
     async def request(self, method, url, body=None):
         events = []
@@ -181,7 +181,7 @@ class UserRoutesTests(unittest.IsolatedAsyncioTestCase):
                 with patch("app.routes.users.user_service." + service_name, side_effect=error):
                     status, body = await self.request(method, path, payload)
                 self.assertEqual(status, expected_status)
-                self.assertEqual(body, {"success": False, "message": str(error), "data": None})
+                self.assertEqual(body, {"success": False, "message": "Resource not found" if expected_status == 404 else str(error), "data": None})
 
     async def test_real_service_rejects_invalid_role_before_persistence(self):
         with patch("app.services.user_service.organization_repository.get_organization_by_id", return_value=Mock(id="org")), \

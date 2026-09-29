@@ -22,6 +22,12 @@ class ConversationUpdate(BaseModel):
     status: ConversationStatus | None = None
 
 
+class ConversationAssignment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    agent_id: str
+
+
 class ConversationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
