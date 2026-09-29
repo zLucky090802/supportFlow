@@ -130,7 +130,7 @@ class AuthAPITests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({row["id"] for row in body["data"]}, {"admin", "supervisor", "agent"})
         for role in ("agent", "supervisor"):
             self.assertEqual((await self.request("GET", "/users", token=create_access_token(role)))[0], 403)
-        self.assertEqual((await self.request("GET", "/users/foreign", token=create_access_token("admin")))[0], 403)
+        self.assertEqual((await self.request("GET", "/users/foreign", token=create_access_token("admin")))[0], 404)
 
     async def test_admin_and_supervisor_access_organization_conversations_only(self):
         for user_id in ("admin", "supervisor"):
@@ -145,7 +145,7 @@ class AuthAPITests(unittest.IsolatedAsyncioTestCase):
                     ))[0], 200)
                 self.assertEqual((await self.request(
                     "GET", "/conversations/foreign-conversation", token=token,
-                ))[0], 403)
+                ))[0], 404)
 
     async def test_agent_conversations_are_filtered_and_foreign_access_denied(self):
         token = create_access_token("agent")
@@ -153,7 +153,7 @@ class AuthAPITests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status, 200)
         self.assertEqual([row["id"] for row in body["data"]], ["assigned"])
         for conversation_id in ("unassigned", "foreign-conversation"):
-            self.assertEqual((await self.request("GET", "/conversations/" + conversation_id, token=token))[0], 403)
+            self.assertEqual((await self.request("GET", "/conversations/" + conversation_id, token=token))[0], 404 if conversation_id == "foreign-conversation" else 403)
 
     async def test_agent_can_reply_as_self_but_cannot_impersonate(self):
         token = create_access_token("agent")
@@ -161,7 +161,8 @@ class AuthAPITests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.request("POST", "/messages", payload, token))[0], 201)
         for change in ({"sender_type": "AI", "sender_id": None}, {"sender_id": "admin"},
                        {"conversation_id": "unassigned"}, {"conversation_id": "foreign-conversation"}):
-            self.assertEqual((await self.request("POST", "/messages", payload | change, token))[0], 403)
+            expected = 404 if change.get("conversation_id") == "foreign-conversation" else 403
+            self.assertEqual((await self.request("POST", "/messages", payload | change, token))[0], expected)
 
     async def test_role_changes_and_deleted_users_take_effect_with_existing_token(self):
         token = create_access_token("admin")

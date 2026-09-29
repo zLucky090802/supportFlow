@@ -37,6 +37,32 @@ def get_conversations_by_organization_id(
     return db.scalars(stmt).all()
 
 
+def get_conversation_for_update(db: Session, conversation_id: str) -> Conversations | None:
+    # Refresh an already-loaded ORM object after acquiring the row lock.
+    stmt = (
+        select(Conversations)
+        .where(Conversations.id == conversation_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return db.scalar(stmt)
+
+
+def set_conversation_assignment(
+    db: Session, conversation: Conversations, agent_id: str | None,
+) -> Conversations:
+    """Persist an assignment after the service has locked and authorized the row."""
+    try:
+        conversation.assigned_agent_id = agent_id
+        conversation.updated_at = func.current_timestamp()
+        db.commit()
+        db.refresh(conversation)
+        return conversation
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+
+
 def get_conversations_by_customer_id(
     db: Session,
     customer_id: str

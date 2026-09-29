@@ -118,7 +118,7 @@ class MessageRoutesTests(unittest.IsolatedAsyncioTestCase):
                 with patch("app.routes.messages.message_service.create_message", side_effect=exception):
                     status, body = await self.request("POST", "/messages", self.payload)
                 self.assertEqual(status, expected_status)
-                self.assertEqual(body, {"success": False, "message": str(exception), "data": None})
+                self.assertEqual(body, {"success": False, "message": "Resource not found" if expected_status == 404 else str(exception), "data": None})
 
     async def test_related_service_exceptions_are_registered(self):
         for exception, expected_status in (
@@ -131,7 +131,7 @@ class MessageRoutesTests(unittest.IsolatedAsyncioTestCase):
                 with patch("app.routes.messages.message_service.create_message", side_effect=exception):
                     status, body = await self.request("POST", "/messages", self.payload)
                 self.assertEqual(status, expected_status)
-                self.assertEqual(body, {"success": False, "message": str(exception), "data": None})
+                self.assertEqual(body, {"success": False, "message": "Resource not found" if expected_status == 404 else str(exception), "data": None})
 
     async def test_schema_rejects_invalid_requests_before_service(self):
         for overrides in ({"content": " "}, {"sender_type": "UNKNOWN"}, {"conversation_id": None}):

@@ -10,6 +10,7 @@ from app.models.generated_models import Users
 from app.services import authorization_service as authorization
 
 from app.schemas.conversations import (
+    ConversationAssignment,
     ConversationCreate,
     ConversationDetailResponse,
     ConversationListResponse,
@@ -17,6 +18,7 @@ from app.schemas.conversations import (
 )
 
 from app.services import conversations as conversation_service
+from app.services import conversation_assignment_service as assignment_service
 
 
 logger = logging.getLogger(__name__)
@@ -105,6 +107,22 @@ def get_conversation_by_customer_id(
     }
 
 
+@router.get("/me", response_model=ConversationListResponse)
+def get_my_conversations(
+    actor: Users = Depends(get_current_user), db: Session = Depends(get_db),
+):
+    conversations = assignment_service.list_my_conversations(db, actor)
+    return {"success": True, "message": "Assigned conversations retrieved successfully", "data": conversations}
+
+
+@router.get("/by-agent/{agent_id}", response_model=ConversationListResponse)
+def get_agent_conversations(
+    agent_id: str, actor: Users = Depends(get_current_user), db: Session = Depends(get_db),
+):
+    conversations = assignment_service.list_agent_conversations(db, actor, agent_id)
+    return {"success": True, "message": "Agent conversations retrieved successfully", "data": conversations}
+
+
 # GET CONVERSATION BY ID
 @router.get(
     "/{conversation_id}",
@@ -165,15 +183,36 @@ def update_conversation(
     actor: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    authorization.require_conversation(db, actor, conversation_id)
-    updated = conversation_service.update_conversation(
-        db=db,
-        data=data,
-        conversation_id=conversation_id
-    )
+    try:
+        authorization.require_conversation(db, actor, conversation_id, lock=True)
+        updated = conversation_service.update_conversation(
+            db=db,
+            data=data,
+            conversation_id=conversation_id
+        )
+    except Exception:
+        db.rollback()
+        raise
 
     return {
         "success": True,
         "message": "Conversation updated successfully",
         "data": updated
     }
+
+
+@router.patch("/{conversation_id}/assign", response_model=ConversationDetailResponse)
+def assign_conversation(
+    conversation_id: str, data: ConversationAssignment,
+    actor: Users = Depends(get_current_user), db: Session = Depends(get_db),
+):
+    conversation = assignment_service.assign_conversation(db, actor, conversation_id, data.agent_id)
+    return {"success": True, "message": "Conversation assigned successfully", "data": conversation}
+
+
+@router.patch("/{conversation_id}/unassign", response_model=ConversationDetailResponse)
+def unassign_conversation(
+    conversation_id: str, actor: Users = Depends(get_current_user), db: Session = Depends(get_db),
+):
+    conversation = assignment_service.unassign_conversation(db, actor, conversation_id)
+    return {"success": True, "message": "Conversation unassigned successfully", "data": conversation}
