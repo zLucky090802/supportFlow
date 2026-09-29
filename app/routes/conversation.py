@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.dependencies.auth import get_current_user, require_roles
+from app.dependencies.auth import get_current_user
 from app.models.generated_models import Users
 from app.services import authorization_service as authorization
 
@@ -137,11 +137,10 @@ def get_conversation(
 )
 def create_conversation(
     data: ConversationCreate,
-    actor: Users = Depends(require_roles("ADMIN", "SUPERVISOR")),
+    actor: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    authorization.require_organization(actor, data.organization_id)
-    authorization.require_customer(db, actor, data.customer_id)
+    authorization.require_conversation_creation(db, actor, data.organization_id, data.customer_id)
     new_conversation = conversation_service.create_conversation(
         db=db,
         conversation=data

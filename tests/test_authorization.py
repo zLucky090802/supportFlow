@@ -124,17 +124,22 @@ class ProtectedRoutesTests(unittest.TestCase):
         )
 
     def test_non_admin_cannot_manage_users(self):
-        for role in ("AGENT", "SUPERVISOR"):
-            self.login(role)
-            for path in ("/users", "/users/agent", "/users/by-email?email=a@example.com"):
-                with self.subTest(role=role, path=path):
-                    self.assertEqual(self.client.get(path).status_code, 403)
+        # Resource lookup now precedes the role check so tenant isolation is first.
+        user = SimpleNamespace(organization_id="org")
+        with patch.object(authorization.user_service, "get_user_by_id", return_value=user), \
+             patch.object(authorization.user_service, "get_user_by_email", return_value=user):
+            for role in ("AGENT", "SUPERVISOR"):
+                self.login(role)
+                for path in ("/users", "/users/agent", "/users/by-email?email=a@example.com"):
+                    with self.subTest(role=role, path=path):
+                        self.assertEqual(self.client.get(path).status_code, 403)
 
     def test_agent_cannot_manage_customers_or_settings(self):
         self.login()
         self.assertEqual(self.client.get("/customer").status_code, 403)
         self.assertEqual(self.client.patch("/organizations/org", json={"name": "Changed"}).status_code, 403)
-        self.assertEqual(self.client.post("/conversations", json={"organization_id": "org", "customer_id": "customer"}).status_code, 403)
+        with patch.object(authorization.customer_service, "get_customer_by_id", return_value=SimpleNamespace(organization_id="org")):
+            self.assertEqual(self.client.post("/conversations", json={"organization_id": "org", "customer_id": "customer"}).status_code, 403)
 
     def test_admin_cannot_cross_tenant_or_delete_organization(self):
         self.login("ADMIN")
