@@ -48,6 +48,9 @@ there is no unauthenticated bootstrap bypass.
 
 ## Implemented boundary
 
+Resource authorization follows organization, role, then assignment checks.
+See the [Sprint 1 endpoint policy and test scope](sprint1_permissions.md).
+
 - Existing scrypt hashes are verified using constant-time digest comparison and
   fixed cost parameters. Plaintext/unsupported hashes are rejected.
 - JWT uses HS256 and a 30-minute lifetime. Claims `sub`, `iat`, `exp`, `iss`, `aud`

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status, Response
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.dependencies.auth import require_roles
+from app.dependencies.auth import get_current_user
 from app.models.generated_models import Users
 from app.services import authorization_service as authorization
 from app.schemas.customers import(
@@ -26,9 +26,10 @@ router = APIRouter(
     response_model=CustomerListResponse
 )
 def get_customers(
-    actor: Users = Depends(require_roles("ADMIN", "SUPERVISOR")),
+    actor: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    authorization.require_customer_management(actor, actor.organization_id)
     customers = customer_service.get_customers_by_organization_id(db=db, organization_id=actor.organization_id)
     
     return {
@@ -44,11 +45,12 @@ def get_customers(
 )
 def get_customer_by_id(
     customer_id: str,
-    actor: Users = Depends(require_roles("ADMIN", "SUPERVISOR")),
+    actor: Users = Depends(get_current_user),
     db:Session= Depends(get_db),
     
 ):
-    authorization.require_customer(db, actor, customer_id)
+    customer = authorization.require_customer(db, actor, customer_id)
+    authorization.require_customer_management(actor, customer.organization_id)
     customer = customer_service.get_customer_by_id(db=db, customer_id=customer_id)
     
     return {
@@ -65,11 +67,11 @@ def get_customer_by_id(
 )
 def get_customers_by_organization_id(
     organization_id: str,
-    actor: Users = Depends(require_roles("ADMIN", "SUPERVISOR")),
+    actor: Users = Depends(get_current_user),
     db: Session = Depends(get_db),
     
 ):
-    authorization.require_organization(actor, organization_id)
+    authorization.require_customer_management(actor, organization_id)
     customers = customer_service.get_customers_by_organization_id(db=db, organization_id=organization_id)
     
     
@@ -87,11 +89,11 @@ def get_customers_by_organization_id(
 )
 def create_customer(
     data: CustomerCreate,
-    actor: Users = Depends(require_roles("ADMIN", "SUPERVISOR")),
+    actor: Users = Depends(get_current_user),
     db:Session = Depends(get_db),
     
 ):
-    authorization.require_organization(actor, data.organization_id)
+    authorization.require_customer_management(actor, data.organization_id)
     created = customer_service.create_customer(db=db, customer=data)
     
     return {
@@ -109,10 +111,11 @@ def create_customer(
 def update_customer(
     data: CustomerUpdate,
     customer_id: str,
-    actor: Users = Depends(require_roles("ADMIN", "SUPERVISOR")),
+    actor: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    authorization.require_customer(db, actor, customer_id)
+    customer = authorization.require_customer(db, actor, customer_id)
+    authorization.require_customer_management(actor, customer.organization_id)
     updated = customer_service.update_customer(db=db,customer= data, customer_id=customer_id)
     
     return{
@@ -129,10 +132,11 @@ def update_customer(
 )
 def delete_customer(
     customer_id:str,
-    actor: Users = Depends(require_roles("ADMIN", "SUPERVISOR")),
+    actor: Users = Depends(get_current_user),
     db:Session = Depends (get_db)
 ):
-    authorization.require_customer(db, actor, customer_id)
+    customer = authorization.require_customer(db, actor, customer_id)
+    authorization.require_customer_management(actor, customer.organization_id)
     customer_service.delete_customer(db=db, customer_id=customer_id)
    
     return Response(

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.dependencies.auth import get_current_user, require_roles
+from app.dependencies.auth import get_current_user
 from app.models.generated_models import Users
 from app.services import authorization_service as authorization
 from app.schemas.organization import (
@@ -84,11 +84,11 @@ def get_organization_by_id(
 def update_organization(
     organization_id: str,
     organization: OrganizationUpdate,
-    actor: Users = Depends(require_roles("ADMIN")),
+    actor: Users = Depends(get_current_user),
     db: Session = Depends(get_db),
     
 ):
-    authorization.require_organization(actor, organization_id)
+    authorization.require_organization_management(actor, organization_id)
     updated = organization_service.update_organization(
         db=db,
         organization_id=organization_id,
