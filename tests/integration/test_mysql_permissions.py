@@ -207,6 +207,42 @@ class MySQLPermissionsTests(unittest.TestCase):
                 self.assertIsNone(owner.scalar(select(self.Messages.id).where(
                     self.Messages.conversation_id == self.ids["conversation"])))
 
+    def test_status_lifecycle_and_access_after_reassignment(self):
+        tokens = {role: self.login(role) for role in ("admin", "supervisor", "agent", "second")}
+        path = "/conversations/" + self.ids["conversation"]
+        for role in ("admin", "supervisor", "agent"):
+            with self.subTest(role=role):
+                self.assertEqual(self.request("PATCH", path, {"status": "OPEN"}, tokens[role])[0], 200)
+                status, resolved = self.request("PATCH", path, {"status": "RESOLVED"}, tokens[role])
+                self.assertEqual(status, 200)
+                timestamp = resolved["data"]["resolved_at"]
+                self.assertIsNotNone(timestamp)
+                for state in ("RESOLVED", "CLOSED"):
+                    status, result = self.request("PATCH", path, {"status": state}, tokens[role])
+                    self.assertEqual(status, 200)
+                    self.assertEqual(result["data"]["resolved_at"], timestamp)
+                for state in ("ESCALATED", "OPEN"):
+                    status, result = self.request("PATCH", path, {"status": state}, tokens[role])
+                    self.assertEqual(status, 200)
+                    self.assertIsNone(result["data"]["resolved_at"])
+                foreign = "/conversations/" + self.ids["foreign_conversation"]
+                self.assertEqual(self.request("PATCH", foreign, {"status": "CLOSED"}, tokens[role])[0], 404)
+                self.assertEqual(self.request("PATCH", path, {"status": "CLOSED", "assigned_agent_id": self.ids["second"]}, tokens[role])[0], 422)
+        status, result = self.request("POST", path + "/messages", {"content": "Preserved history"}, tokens["agent"])
+        self.assertEqual(status, 201)
+        message_path = "/messages/" + result["data"]["id"]
+        self.assertEqual(self.request("PATCH", path + "/assign", {"agent_id": self.ids["second"]}, tokens["supervisor"])[0], 200)
+        for url in (path, path + "/messages", "/messages/by-conversation/" + self.ids["conversation"], message_path):
+            self.assertEqual(self.request("GET", url, token=tokens["agent"])[0], 403)
+            self.assertEqual(self.request("GET", url, token=tokens["second"])[0], 200)
+        self.assertEqual(self.request("PATCH", path, {"status": "RESOLVED"}, tokens["agent"])[0], 403)
+        self.assertEqual(self.request("POST", path + "/messages", {"content": "Denied"}, tokens["agent"])[0], 403)
+        with self.session() as db:
+            row = db.get(self.Conversations, self.ids["conversation"])
+            self.assertEqual((row.status, row.resolved_at, row.assigned_agent_id), ("OPEN", None, self.ids["second"]))
+            other = db.get(self.Conversations, self.ids["foreign_conversation"])
+            self.assertEqual(other.status, "OPEN")
+
 
 if __name__ == "__main__":
     unittest.main()
