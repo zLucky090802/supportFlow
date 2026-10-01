@@ -14,11 +14,15 @@ ConversationStatus = Literal[
 
 
 class ConversationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     organization_id: str
     customer_id: str
 
 
 class ConversationUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     status: ConversationStatus | None = None
 
 

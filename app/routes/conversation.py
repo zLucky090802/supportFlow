@@ -183,16 +183,9 @@ def update_conversation(
     actor: Users = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    try:
-        authorization.require_conversation(db, actor, conversation_id, lock=True)
-        updated = conversation_service.update_conversation(
-            db=db,
-            data=data,
-            conversation_id=conversation_id
-        )
-    except Exception:
-        db.rollback()
-        raise
+    updated = conversation_service.update_staff_conversation(
+        db=db, actor=actor, data=data, conversation_id=conversation_id,
+    )
 
     return {
         "success": True,

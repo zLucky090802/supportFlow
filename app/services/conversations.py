@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
+from app.models.generated_models import Conversations, Users
 
 from app.repositories import (
     conversations_repository,
@@ -124,6 +125,22 @@ def create_conversation(
     )
 
 
+def update_staff_conversation(
+    db: Session, actor: Users, data: ConversationUpdate, conversation_id: str,
+) -> Conversations:
+    """Keep assignment authorization and status persistence in one transaction."""
+    from app.services import authorization_service as authorization
+
+    try:
+        conversation = authorization.require_conversation(
+            db, actor, conversation_id, lock=True,
+        )
+        return _update_status(db, conversation, data)
+    except Exception:
+        db.rollback()
+        raise
+
+
 def update_conversation(
     db: Session,
     data: ConversationUpdate,
@@ -141,7 +158,13 @@ def update_conversation(
     if conversation is None:
         raise conversation_exceptions.ConversationNotFound()
 
-    if data.status is None:
+    return _update_status(db, conversation, data)
+
+
+def _update_status(
+    db: Session, conversation: Conversations, data: ConversationUpdate,
+) -> Conversations:
+    if data.status not in ("OPEN", "ESCALATED", "RESOLVED", "CLOSED"):
         raise conversation_exceptions.InvalidConversationStatusError()
 
     resolved_at = conversation.resolved_at
