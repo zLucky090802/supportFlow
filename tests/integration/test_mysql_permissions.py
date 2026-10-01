@@ -110,7 +110,7 @@ class MySQLPermissionsTests(unittest.TestCase):
                             "client": ("127.0.0.1", 5555), "server": ("integration", 80)}, receive, send)
             status = next(item["status"] for item in events if item["type"] == "http.response.start")
             response = b"".join(item.get("body", b"") for item in events if item["type"] == "http.response.body")
-            return status, json.loads(response)
+            return status, json.loads(response) if response else None
         return asyncio.run(call())
 
     def login(self, role):
@@ -242,6 +242,42 @@ class MySQLPermissionsTests(unittest.TestCase):
             self.assertEqual((row.status, row.resolved_at, row.assigned_agent_id), ("OPEN", None, self.ids["second"]))
             other = db.get(self.Conversations, self.ids["foreign_conversation"])
             self.assertEqual(other.status, "OPEN")
+
+    def test_users_customers_organizations_role_and_tenant_matrix(self):
+        tokens = {role: self.login(role) for role in ("admin", "supervisor", "agent")}
+        org_path = "/organizations/" + self.ids["org"]
+        customer_path = "/customer/" + self.ids["customer"]
+        user_path = "/users/" + self.ids["second"]
+        for role, token in tokens.items():
+            with self.subTest(role=role):
+                status, body = self.request("GET", "/auth/me", token=token)
+                self.assertEqual(status, 200)
+                self.assertNotIn("password", json.dumps(body))
+                self.assertNotIn("scrypt", json.dumps(body))
+                status, body = self.request("GET", "/organizations", token=token)
+                self.assertEqual(status, 200)
+                self.assertEqual([row["id"] for row in body["data"]], [self.ids["org"]])
+                for path, allowed in ((org_path, True), (customer_path, role != "agent"),
+                                      (user_path, role == "admin")):
+                    self.assertEqual(self.request("GET", path, token=token)[0], 200 if allowed else 403)
+                for path, allowed in ((org_path, role == "admin"), (customer_path, role != "agent"),
+                                      (user_path, role == "admin")):
+                    self.assertEqual(self.request("PATCH", path, {"name": "Integration updated"}, token)[0],
+                                     200 if allowed else 403)
+                for prefix, key in (("/organizations/", "other"), ("/customer/", "foreign_customer"),
+                                    ("/users/", "foreign")):
+                    foreign = self.request("GET", prefix + self.ids[key], token=token)
+                    missing = self.request("GET", prefix + str(uuid4()), token=token)
+                    self.assertEqual(foreign, missing)
+                    self.assertEqual(foreign[0], 404)
+                    self.assertEqual(self.request("PATCH", prefix + self.ids[key], {"name": "Denied"}, token)[0], 404)
+        self.assertEqual(self.request("PATCH", user_path, {"role": "OWNER"}, tokens["admin"])[0], 400)
+        # A real role change is reflected when reusing an already-issued JWT.
+        self.assertEqual(self.request("PATCH", "/users/" + self.ids["admin"], {"role": "AGENT"}, tokens["admin"])[0], 200)
+        self.assertEqual(self.request("GET", "/users", token=tokens["admin"])[0], 403)
+        with self.session() as db:
+            for model, key in ((self.Organizations, "other"), (self.Customers, "foreign_customer"), (self.Users, "foreign")):
+                self.assertEqual(db.get(model, self.ids[key]).name, "QA temporary")
 
 
 if __name__ == "__main__":
